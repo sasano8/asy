@@ -1,0 +1,21 @@
+# EditorConfig is awesome: https://EditorConfig.org
+
+# top-most EditorConfig file
+root = true
+
+[*]
+indent_style = space
+indent_size = 4
+end_of_line = lf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = false
+
+[*.py]
+indent_size = 4
+indent_style = space
+
+# 複数の拡張子を指定する場合、空白を挟まないこと。空白を挟むと動作しない。
+[*.{json,json5,yml,yaml}]
+indent_size = 2
+indent_style = space
