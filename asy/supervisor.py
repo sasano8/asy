@@ -201,6 +201,9 @@ class LinqAsyncExecutor(SupervisorAsync):
         self.start()
         await self.join()
 
+    async def schedule(self):
+        pass
+
     def start(self):
         """タスクをスケジューリングします。完了まで待機されません。"""
         if self.current_tasks is not None:
