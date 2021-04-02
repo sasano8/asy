@@ -1,19 +1,11 @@
-from .supervisor import SupervisorAsync
-from asyncio import sleep
+from .supervisor import Supervisor
+from .normalizer import normalize_to_schedulable
 
 
 def run(*args):
-    return SupervisorAsync(*args).to_executor().run()
-
-
-def schedule(*args):
-    """
-    Schedule the execution of a coroutine object in a spawn task.
-
-    Return: Task object.
-    """
-    raise NotImplementedError()
+    return supervise(*args).run()
 
 
 def supervise(*args):
-    return SupervisorAsync(*args).to_executor()
+    schedulable = [normalize_to_schedulable(x) for x in args]
+    return Supervisor(*schedulable)

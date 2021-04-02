@@ -1,290 +1,180 @@
 from __future__ import annotations
+from asy.protocols import PCancelToken, PSchedulable
 
 import asyncio
 import logging
 import signal
-from functools import partial
 from typing import (
     Any,
-    Callable,
-    Coroutine,
-    Iterable,
-    Iterator,
     List,
     Set,
-    TypeVar,
+    Tuple,
 )
+import logging
+from .cancel_token import CancelToken, CallbackCancelToken
 
-from .cancel_token import CancelToken
-from .utils import is_coroutine_callable
-
-T = TypeVar("T", bound=Callable)
-
-
-class Task:
-    def __init__(self, coroutine_callable: Callable[..., Coroutine]) -> None:
-        if not is_coroutine_callable(coroutine_callable):
-            raise TypeError(f"{coroutine_callable} is not coroutine_callable")
-        self._coroutine_function = coroutine_callable
-        self._task: asyncio.Task = None
-
-        self.__name__ = self.get_name_from(coroutine_callable)
-        self._result = None
-        self._exception = None
-        self._cancelled = False
-        self._done = False
-
-    @staticmethod
-    def get_name_from(obj):
-        if isinstance(obj, partial):
-            target = obj.func
-        else:
-            target = obj
-
-        if hasattr(obj, "__name__"):
-            return target.__name__
-        else:
-            return target.__class__.__name__
-
-    def get_name(self):
-        if self._task:
-            return self._task.get_name()
-        return self.__name__
-
-    def result(self):
-        if self._task is None:
-            raise asyncio.exceptions.InvalidStateError("Result is not set.")
-        else:
-            return self._task.result()
-
-    def exception(self):
-        if self._task is None:
-            raise asyncio.exceptions.InvalidStateError("Exception is not set.")
-        else:
-            return self._task.exception()
-
-    def cancel(self):
-        if self._task is None:
-            raise asyncio.exceptions.InvalidStateError(
-                "Can not cancel. Task is not scheduled."
-            )
-        self._task.cancel()
-
-    def cancelled(self):
-        if self._task is None:
-            return False
-        else:
-            return self._task.cancelled()
-
-    def done(self):
-        if self._task is None:
-            return False
-        else:
-            return self._task.done()
-
-    def add_done_callback(self, fn: Callable) -> None:
-        return self._task.add_done_callback(fn)
-
-    def remove_done_callback(self, fn: Callable) -> int:
-        return self._task.remove_done_callback(fn)
-
-    def schedule(self, *args: Any, **kwargs: Any) -> asyncio.Task:
-        if self._task is not None:
-            raise RuntimeError("Task already run.")
-        co = self._coroutine_function(*args, **kwargs)
-        self._task = asyncio.create_task(co)
-        return self._task
-
-    async def __call__(self, *args: Any, **kwargs: Any):
-        return await self.schedule(*args, **kwargs)
+logger = logging.getLogger(__name__)
 
 
-class SupervisorAsync(Iterable[Task]):
-    """実行するコルーチン関数を管理する"""
+class Supervisor:
+    def __init__(self, *schedulables: PSchedulable):
+        self.schedulables = schedulables
+        self.cancel_tokens: List[PCancelToken] = None  # type: ignore
+        self.tasks = None
+        self.future: asyncio.Future = None  # type: ignore
+        self.sub_futures = None
 
-    def __init__(
-        self, coroutine_functions: Iterable[Callable[..., Coroutine]] = []
-    ) -> None:
-        self.__root__ = coroutine_functions
+        self.set_config()
+        # self.set_config_print_log()
 
-    def __iter__(self) -> Iterator[Task]:
-        return self.__root__.__iter__()
+    def set_config(
+        self, on_succeed=None, on_error=None, on_cancel=None, on_completed=None
+    ):
+        self.on_succeed = on_succeed or (
+            lambda task: logger.info(f"[SUCCESS]{task.result()}")
+        )
+        self.on_error = on_error or (lambda task: logger.info(f"[FAIL]{task}"))
+        self.on_cancel = on_cancel or (lambda task: logger.info(f"[CANCEL]{task}"))
+        self.on_completed = on_completed or (
+            lambda task: logger.info(f"[COMPLETE]{task}")
+        )
 
-    def to_executor(self, logger=None) -> LinqAsyncExecutor:
-        # コルーチンファンクションからコルーチンを生成し、一度のみ実行可能なエクゼキュータを生成する
-        # tasks = self.covert_coroutines_to_tasks(self.__root__)
-        executor = LinqAsyncExecutor(self.__root__, logger)
-        return executor
+    def set_config_print_log(self):
+        self.on_succeed = lambda task: print(task)
+        self.on_error = lambda task: print(task)
+        self.on_cancel = lambda task: print(task)
+        self.on_completed = lambda task: print(task)
 
-    def __enter__(self):
-        raise NotImplementedError()
-        # 実装したい
-        # enterとexitは自身に対して呼び出される
-        # __enter__で別のオブジェクトをリターンしても、exitが呼ばれるのはこのオブジェクト
-
-    def __exit__(self, ex_type, ex_value, trace):
-        raise NotImplementedError()
-
-    def __await__(self):
-        raise NotImplementedError()
-
-
-class LinqAsyncExecutor(SupervisorAsync):
-    """
-    管理しているコルーチン関数からコルーチンを生成し、その実行管理を行う。
-
-    実行可能な関数のインターフェースは次のとおり。
-
-    async def func(token: PCancelToken):
-        ...
-    """
-
-    def __init__(
-        self, coroutine_functions: Iterable[Callable[..., Coroutine]], logger
-    ) -> None:
-        self.__root__: List[Task] = []
-        for cf in coroutine_functions:
-            if is_coroutine_callable(cf):
-                self.__root__.append(Task(cf))
-            else:
-                raise TypeError(f"{cf} is not coroutine function.")
-
-        self.cancel_tokens = [CancelToken() for x in self.__root__]
-
-        # self.on_each_complete = None
-        self.current_tasks = None
-        self.logger = logging.getLogger() if logger is None else logger
-
-    async def __call__(self):
-        self.start()
-
-        try:
-            while self.completed() == False:
-                await asyncio.sleep(1)
-
-        except asyncio.exceptions.TimeoutError as e:
-            print("timeout!!!")
-        except Exception as e:
-            print("exception!!!!")
-            raise
+    def schedule(self) -> Tuple[PCancelToken, asyncio.Task]:
+        token = CancelToken()
+        task = asyncio.create_task(self.__call__(token))
+        return token, task
 
     def run(self, handle_signals: Set[str] = {"SIGINT", "SIGTERM"}):
-        """タスクを実行し、完了まで待機します。"""
-        try:
-            loop = asyncio.get_running_loop()
-
-        except RuntimeError as e:
-            loop = None
-
-        if loop:
-            # asyncioはネストしたイベントループを許可していない。それをハックするのも難しい
-            raise RuntimeError(
-                "This event loop is already running. use `run_async` insted of"
-            )
-
         loop = asyncio.new_event_loop()
-        cancel_tokens = self.cancel_tokens
 
         def handle_cancel():
             print("cancel requested.")
-            for token in cancel_tokens:
-                token.is_canceled = True
+            asyncio.create_task(self.stop())
 
         for sig_name in handle_signals:
             sig = getattr(signal, sig_name)
             loop.add_signal_handler(sig, handle_cancel)
 
-        loop.run_until_complete(self.run_async())
+        token = CallbackCancelToken(handle_cancel)
 
-    async def run_async(self):
-        """タスクを実行し、完了まで待機します。"""
-        self.start()
-        await self.join()
+        async def main():
+            tokens, tasks, future, sub_futures = self._start()
+            result = await future
+            return await self.finalize(result, sub_futures)
 
-    async def schedule(self):
-        pass
+        result = loop.run_until_complete(main())
+        loop.close()
+        self.clear()
+        return result
 
-    def start(self):
-        """タスクをスケジューリングします。完了まで待機されません。"""
-        if self.current_tasks is not None:
-            raise RuntimeError("cannot reuse already awaited coroutine")
+    async def __call__(self, token: PCancelToken):
+        tokens, tasks, future, sub_futures = self._start()
 
-        loop = asyncio.get_event_loop()
-        self.current_tasks = []
-        monitor_tasks = self.current_tasks
+        async def observe_cancel():
+            while future.done() == False:
+                await asyncio.sleep(0.1)
+                if token.is_cancelled:
+                    await self.stop()
 
-        # add_done_callbackのコールバックは即時実行される。実行中タスクが完了する前にメッセージが出力されてしまう。
-        def lazy_notify(task):
-            async def callback(task):
-                await asyncio.sleep(1)
-                self.log(task)
+        task = asyncio.create_task(observe_cancel())
+        sub_futures.append(task)
+        result = await future
+        return await self.finalize(result, sub_futures)
 
-            asyncio.create_task(callback(task))
+    @classmethod
+    async def finalize(cls, wait_result, sub_futures):
+        for sub in sub_futures:
+            sub.cancel()
 
-        for index, task in enumerate(self):
-            token = self.cancel_tokens[index]
-            future = task.schedule(token)
-            monitor_tasks.append(future)
-            future.add_done_callback(monitor_tasks.remove)
-            future.add_done_callback(lazy_notify)
+        result = cls.get_result_from_wait(wait_result)
+        await asyncio.sleep(0)
+        return result
+
+    @staticmethod
+    def get_result_from_wait(wait_result):
+        return wait_result[0]
+
+    def _start(self):
+        if not self.is_ready:
+            raise Exception("already running.")
+
+        on_succeed = self.on_succeed
+        on_error = self.on_error
+        on_cancel = self.on_cancel
+        on_completed = self.on_completed
+
+        def on_done(task):
+            try:
+                result = task.result()
+                on_succeed(task)
+            except asyncio.CancelledError:
+                # logger.info(f"[CANCEL]{task}")
+                on_cancel(task)
+            except Exception:  # pylint: disable=broad-except
+                # logger.exception(message, *message_args)
+                # import traceback
+
+                # logger.warning(traceback.format_exc())
+                # logger.warning(f"[FAILED]{task}")
+                on_error(task)
+            on_completed(task)
+
+        tasks = []
+        tokens = []
+        sub_futures = []
+
+        for index, schedulable in enumerate(self.schedulables):
+            token, task = schedulable.schedule()
+            tokens.append(token)
+            tasks.append(task)
+            task.add_done_callback(on_done)
+
+        future = asyncio.create_task(
+            asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
+        )
+        self.future = future
+        self.cancel_tokens = tokens
+        self.tasks = tasks
+        self.sub_futures = sub_futures
+        return tokens, tasks, future, sub_futures
+
+    async def start(self):
+        tokens, tasks, future, sub_futures = self._start()
+
+    def cancel(self):
+        if self.is_ready:
+            raise Exception("The coroutine has not been executed yet")
+
+        for token in self.cancel_tokens:
+            token.is_cancelled = True
 
     async def stop(self, timeout=10000):
-        """タスクをストップし、全てのタスクが完了もしくはキャンセルされるまで待ちます。"""
-        if self.current_tasks is None:
-            raise Exception("The coroutine has not been executed yet")
+        self.cancel()
+        await self.future
 
-        # キャンセルトークンにキャンセルを通知する
-        for token in self.cancel_tokens:
-            token.is_canceled = True
+    def is_completed(self):
+        return self.future.done()
 
-        for task in self.current_tasks:
-            if not task.done():
-                task.cancel()
+    @property
+    def is_ready(self):
+        return all(
+            [
+                self.future is None,
+                self.cancel_tokens is None,
+                self.tasks is None,
+                self.sub_futures is None,
+            ]
+        )
 
-        await self.join()
-
-    async def join(self):
-        """全てのタスクが終了するまで待機します。サーバプログラム等の無限ループ処理は、代わりにstopを利用してください。"""
-        while self.is_completed_or_raise() == False:
-            await asyncio.sleep(1)
-
-    def is_completed_or_raise(self):
-        if self.current_tasks is None:
-            raise Exception("The coroutine has not been executed yet")
-
-        return self.completed()
-
-    def completed(self):
-        if self.current_tasks is None:
-            return False
-        else:
-            return len(self.current_tasks) == 0
-
-    def log(self, task: asyncio.Task) -> None:
-        logger = self.logger
-        try:
-            task.result()
-            logger.info(f"[COMPLETE]{task}")
-            # print(f"{task}[COMPLETE]")
-        except asyncio.CancelledError:
-            logger.info(f"[CANCEL]{task}")
-        except Exception:  # pylint: disable=broad-except
-            # logger.exception(message, *message_args)
-            import traceback
-
-            logger.warning(traceback.format_exc())
-            logger.warning(f"[FAILED]{task}")
-
-    def __enter__(self):
-        raise NotImplementedError()
-
-    def __exit__(self, ex_type, ex_value, trace):
-        raise NotImplementedError()
-
-    async def __aenter__(self):
-        raise NotImplementedError()
-        await self.start()
-
-    async def __aexit__(self, ex_type, ex_value, trace):
-        raise NotImplementedError()
-        await self.stop()
+    def clear(self):
+        self.future = None
+        self.cancel_tokens = None
+        self.tasks = None
+        self.sub_futures = None
+        assert self.is_ready

@@ -1,183 +1,88 @@
 # asy
-[![Version](https://img.shields.io/pypi/v/poetry-dynamic-versioning)](https://pypi.org/project/poetry-dynamic-versioning)
+[![Version](https://img.shields.io/pypi/v/asy)](https://pypi.org/project/asy)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-asyはasyncioをもっと簡単で強力にするために開発されました。
-開発の動機は次のとおりです。
+`asy` is easy and powerful for `asyncio`.
 
-- 分かりやすいキャンセル実装
-- 素早い実行と管理
-- コマンドラインツール
+# Motivation for development
 
-# example
-
-``` python
-import asyncio
-import asy
-
-async def func1(token: asy.PCancelToken):
-    while True:
-        if token.is_canceled:
-            break
-        await asyncio.sleep(1)
+- Simple cancellation
+- Improve the coordination of async functions between libraries
+- No more programs for execution management
+- Develop specifications like ASGI
 
 
-async def func2(token: asy.PCancelToken):
-    ...
-
-
-asy.run(func1, func2)
-```
-
-``` python
-import asyncio
-import asy
-
-
-class CountTask:
-    def __init__(self, count: int = 0):
-        self.count = count
-
-    async def __call__(self, token: asy.PCancelToken):
-        count = self.count
-
-        while True:
-            if token.is_canceled:
-                break
-
-            print(count)
-            await asyncio.sleep(1)
-            count += 1
-
-
-asy.run(CountTask(1))
-```
-
-``` python
-@asy.Task
-class CountTask:
-    def __init__(self, count: int = 0):
-        self.count = count
-
-    async def __call__(self, token: asy.PCancelToken):
-        count = self.count
-
-        while True:
-            if token.is_canceled:
-                break
-
-            print(count)
-            await asyncio.sleep(1)
-            count += 1
-
-CountTask.run(1)
-```
-
-``` python
-import asyncio
-import asy
-from fastapi import Fastapi
-
-
-async def func1(token: asy.PCancelToken):
-    while True:
-        if token.is_canceled:
-            break
-        await asyncio.sleep(1)
-
-superviser = asy.supervise(func1)
-
-@app.on_event("startup")
-async def startup_worker():
-    await superviser.start()
-
-@app.on_event("shutdown")
-async def shutdown_worker():
-    await superviser.stop()
-```
-
-``` python
-import asyncio
-import asy
-from fastapi import Fastapi
-
-
-async def func1(token: asy.PCancelToken):
-    while True:
-        if token.is_canceled:
-            break
-        await asyncio.sleep(1)
-
-
-@app.on_event("startup")
-async def startup_worker():
-    await asy.schedule(func1)
-```
+# Installation
 
 ``` shell
-# execute func1
-python3 -m asy sample:func1
-
-# execute func1 and observe src and reload
-python3 -m asy --reload sample:func1
-
-# multipule execute
-python3 -m asy sample:func1 sample:func2
-
-# execute task
-python3 -m asy --task sample:CountTask -count=1
+pip install asy
 ```
 
+# Getting started
+
+Create deamons, in `example.py`:
+
 ``` python
-import typer
-import asy
+import asyncio
 
+# cancelable limited loop
+async def func1(token):
+    for i in range(10):
+        if token.is_cancelled:
+            break
+        print("waiting")
+        await asyncio.sleep(1)
+    print("complete func2.")
 
-@asy.Task
-class CountTask:
-    def __init__(self, count: int = 0):
-        self.count = count
+# cancelable infinity loop
+async def func2():
+    while True:
+        print("waiting")
+        await asyncio.sleep(1)
 
-    async def __call__(self, token: asy.PCancelToken):
-        count = self.count
+# uncancelable limited loop
+def func3():
+    for i in range(1000):
+        print(i)
 
-        while True:
-            if token.is_canceled:
-                break
-
-            print(count)
+# from callable
+class YourDeamon:
+    async def __call__(self, token):
+        while not token.is_cancelled:
             await asyncio.sleep(1)
-            count += 1
+        print("complete.")
+
+func4 = YourDeamon()
 
 
-app = typer.Typer()
-app.command()(CountTask.run)
+# Do not run
+# infinity loop
+# async def func5()):
+#     while True:
+#         print("waiting")
 ```
+
+Run in shell.
+
+``` shell
+python3 -m asy example:func1 example:func2 example:func3 example:func4
+```
+
+Run in Python script.
 
 ``` python
 import asy
+from example import func1, func2, func3, func4
 
-superviser = asy.supervise(func1, func2)
+supervisor = asy.supervise(func1, func2, func3, func4)
+supervisor.run()
 
-# 処理を逐次的に実行する
-for result in superviser:
-    print(result)
-
-
-# 非同期に処理を逐次的に実行する
-async for result in superviser:
-    print(result)
+# or
+asy.run(func1, func2, func3, func4)
 ```
 
-``` python
-async def main():
-    # trioを参考
-    async with asy.scoped() as scoped:
-        future1 = scoped.schedule(func1)
-        await scoped.run(func2)
-        future2 =scoped.schedule(func3)
-```
 
-``` python
-asy.supervise(func1, func2).sub(fun3, func4)
-```
+Let's end the daemon with `Ctrl-C` and enjoy `asy`!
+
+# Caution
+`asy` is a beta version. Please do not use it in production.

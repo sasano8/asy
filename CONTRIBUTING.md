@@ -1,4 +1,10 @@
 ## Development
+Please do not contribute as it is still under development.
+
+
+
+# Memo
+
 This project is managed using [Poetry](https://poetry.eustace.io).
 Development requires Python 3.6+ because of [Black](https://github.com/ambv/black).
 

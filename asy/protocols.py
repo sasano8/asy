@@ -1,16 +1,23 @@
-from typing import Protocol
+from typing import Protocol, runtime_checkable, Tuple
+import asyncio
 
 
+@runtime_checkable
 class PCancelToken(Protocol):
     @property
-    def is_canceled(self) -> bool:
+    def is_cancelled(self) -> bool:
         raise NotImplementedError()
 
-    @is_canceled.setter
-    def is_canceled(self, value: bool):
+    @is_cancelled.setter
+    def is_cancelled(self, value: bool):
         raise NotImplementedError()
 
 
 class PAwaitable(Protocol):
     async def __call__(self, token: PCancelToken):
         ...
+
+
+class PSchedulable(Protocol):
+    def schedule(self) -> Tuple[PCancelToken, asyncio.Task]:
+        raise NotImplementedError()

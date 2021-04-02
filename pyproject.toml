@@ -1,9 +1,10 @@
 [tool.poetry]
 name = "asy"
-version = "0.0.1"
+version = "0.0.2"
 description = ""
 authors = ["sasano8 <y-sasahara@ys-method.com>"]
 license = "MIT"
+readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.8"

@@ -1,16 +1,17 @@
 import typer
 from typing import List
+import logging
 
 app = typer.Typer()
 
 
 @app.command()
-def run(attrs: List[str], reload: bool = False):
+def run(attrs: List[str], reload: bool = False, log: str = "INFO", pipe: bool = False):
     import asy
 
-    # typer.echo(attrs)
+    logging.basicConfig(level=log)
     callables = [get_module_attr_from_str(x) for x in attrs]
-    asy.run(callables)
+    asy.run(*callables)
 
 
 def get_module_attr_from_str(attr_path: str):
