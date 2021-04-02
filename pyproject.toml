@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "asy"
-version = "0.0.2"
+version = "0.0.3"
 description = ""
 authors = ["sasano8 <y-sasahara@ys-method.com>"]
 license = "MIT"
