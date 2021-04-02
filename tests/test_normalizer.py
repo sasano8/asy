@@ -91,6 +91,15 @@ class CallableOneArgNormal:
         return 1
 
 
+async def one_args_pcancel_token_lazy(token: "PCancelToken"):
+    return 1
+
+
+class CallableLazy:
+    async def __call__(self, token: "PCancelToken"):
+        return 1
+
+
 @pytest.mark.parametrize(
     "expect_type, value",
     [
@@ -110,6 +119,8 @@ class CallableOneArgNormal:
         (CancelableAsyncTask, CallableOneArg()),
         (ForceCancelAsyncTask, CallableNoArgNormal()),
         (None, CallableOneArgNormal()),
+        (CancelableAsyncTask, one_args_pcancel_token_lazy),
+        (CancelableAsyncTask, CallableLazy()),
     ],
 )
 def test_normalize_to_task(expect_type, value):
