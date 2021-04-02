@@ -1,10 +1,12 @@
 [tool.poetry]
 name = "asy"
-version = "0.0.3"
-description = ""
+version = "0.0.4"
+description = "asy is easy and powerful utility for asyncio."
 authors = ["sasano8 <y-sasahara@ys-method.com>"]
 license = "MIT"
 readme = "README.md"
+repository = "https://github.com/sasano8/asy"
+keywords = ["asyncio"]
 
 [tool.poetry.dependencies]
 python = "^3.8"

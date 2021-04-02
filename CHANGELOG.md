@@ -1,3 +1,7 @@
+## v0.0.4 (2021-04-03)
+
+* Update README.md
+
 ## v0.0.3 (2021-04-02)
 
 * Improve type check.
