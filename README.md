@@ -69,7 +69,7 @@ class YourDeamon:
             await asyncio.sleep(1)
         return f"complete func5.  result: {value}"
 
-func5 = YourDeamon()
+func5 = YourDeamon(1)
 
 # Do not run
 # infinity loop

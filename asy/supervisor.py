@@ -1,5 +1,6 @@
 from __future__ import annotations
 from asy.protocols import PCancelToken
+from multiprocessing import Process
 
 import asyncio
 import logging
@@ -47,18 +48,23 @@ class SupervisorBase:
         task = asyncio.create_task(self.__call__(token))
         return token, task
 
+    def to_process(self, handle_signals: Set[str] = {"SIGINT", "SIGTERM"}):
+        return Process(target=self.run, kwargs={"handle_signals": handle_signals})
+
     def run(self, handle_signals: Set[str] = {"SIGINT", "SIGTERM"}):
         """新たなイベントループ上に、管理している関数群をスケジューリングし、完了まで監督する。このメソッドは自身の状態を変更しない。"""
         loop = asyncio.new_event_loop()
         token = CancelToken()
 
         def handle_cancel():
+            print("cancel requested.")
             token.is_cancelled = True
 
         for sig_name in handle_signals:
             sig = getattr(signal, sig_name)
             loop.add_signal_handler(sig, handle_cancel)
 
+        # result = loop.run_until_complete(self(token))
         try:
             result = loop.run_until_complete(self(token))
         except Exception as e:
@@ -72,14 +78,14 @@ class SupervisorBase:
         """管理している関数群をスケジューリングし、完了まで監督する。このメソッドは自身の状態を変更しない。"""
         tokens, tasks, future, sub_futures = self._start()
 
-        async def observe_cancel():
+        async def observe_cancel(token):
             while not future.done():
                 await asyncio.sleep(0.1)
                 if token.is_cancelled:
                     for token in tokens:
                         token.is_cancelled = True
 
-        task = asyncio.create_task(observe_cancel())
+        task = asyncio.create_task(observe_cancel(token))
         sub_futures.append(task)
         result = await future
         return await self.finalize(result, sub_futures)

@@ -1,3 +1,7 @@
+## v0.0.6 (2021-04-03)
+
+* Fix bug - cancel unmanaged.
+
 ## v0.0.5 (2021-04-03)
 
 * Update README.md

@@ -11,7 +11,8 @@ def run(attrs: List[str], reload: bool = False, log: str = "INFO", pipe: bool = 
 
     logging.basicConfig(level=log)
     callables = [get_module_attr_from_str(x) for x in attrs]
-    asy.run(*callables)
+    supervisor = asy.supervise(*callables)
+    supervisor.run()
 
 
 def get_module_attr_from_str(attr_path: str):
