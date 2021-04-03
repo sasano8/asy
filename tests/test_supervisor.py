@@ -4,7 +4,7 @@ import asyncio
 import os
 import signal
 from multiprocessing import Queue, Process
-from multiprocessing.queues import Empty as GetTimeout
+from multiprocessing.queues import Empty as GetTimeout  # type: ignore
 import time
 
 
@@ -26,6 +26,11 @@ async def async_token_infinity_loop(token):
     while True:
         await asyncio.sleep(0.01)
     return 1
+
+
+def normal_infinity_loop():
+    while True:
+        ...
 
 
 def test_supervisor():
@@ -76,6 +81,20 @@ def exist_value(queue):
             "SIGTERM",
             INFINITY,
         ),
+        # シグナルは捕捉される。同期関数はキャンセルできないので無限ループ
+        (
+            normal_infinity_loop,
+            "SIGTERM",
+            "SIGTERM",
+            INFINITY,
+        ),
+        # シグナルを捕捉せず強制終了
+        (
+            normal_infinity_loop,
+            None,
+            "SIGTERM",
+            TERMINATED,
+        ),
     ],
 )
 def test_supervisor_cancel_control(func, handle_signal, send_signal, exit_type):
@@ -83,10 +102,10 @@ def test_supervisor_cancel_control(func, handle_signal, send_signal, exit_type):
     if "linux":
         sig = getattr(signal, send_signal)
     elif "windows":
-        dic = {"SIGINT": signal.CTRL_C_EVENT, "SIGTERM": signal.CTRL_BREAK_EVENT}
+        dic = {"SIGINT": signal.CTRL_C_EVENT, "SIGTERM": signal.CTRL_BREAK_EVENT}  # type: ignore
         sig = dic[send_signal]
 
-    sig: int = int(sig)
+    sig: int = int(sig)  # type: ignore
     handle_signals = {handle_signal} if handle_signal else set()
     queue = Queue()  # type: ignore
 
@@ -108,7 +127,7 @@ def test_supervisor_cancel_control(func, handle_signal, send_signal, exit_type):
         assert exit_type == SUCCEED
 
     except GetTimeout as e:
-        os.kill(process.pid, sig)
+        os.kill(process.pid, sig)  # type: ignore
         time.sleep(0.1)
 
         if exit_type == INFINITY:

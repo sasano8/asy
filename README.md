@@ -73,7 +73,7 @@ func5 = YourDeamon(1)
 
 # Do not run
 # infinity loop
-# async def func5()):
+# async def func5():
 #     while True:
 #         print("waiting")
 ```
