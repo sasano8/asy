@@ -12,19 +12,17 @@ from .normalizer import normalize_to_schedulable
 logger = logging.getLogger(__name__)
 
 
-class Supervisor:
+class SupervisorBase:
     def __init__(
         self, *schedulables: Union[Callable[[], Any], Callable[[PCancelToken], Any]]
     ):
         tmp = [normalize_to_schedulable(x) for x in schedulables]
         self.schedulables = tmp
-        self.cancel_tokens: List[PCancelToken] = None  # type: ignore
-        self.tasks = None
-        self.future: asyncio.Future = None  # type: ignore
-        self.sub_futures = None
-
         self.set_config()
-        # self.set_config_print_log()
+        self.__post_init__()
+
+    def __post_init__(self):
+        pass
 
     def set_config(
         self, on_succeed=None, on_error=None, on_cancel=None, on_completed=None
@@ -48,9 +46,6 @@ class Supervisor:
         token = CancelToken()
         task = asyncio.create_task(self.__call__(token))
         return token, task
-
-    def restart_every(self, *args):
-        raise NotImplementedError()
 
     def run(self, handle_signals: Set[str] = {"SIGINT", "SIGTERM"}):
         """新たなイベントループ上に、管理している関数群をスケジューリングし、完了まで監督する。このメソッドは自身の状態を変更しない。"""
@@ -139,6 +134,14 @@ class Supervisor:
             asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
         )
         return tokens, tasks, future, sub_futures
+
+
+class Supervisor(SupervisorBase):
+    def __post_init__(self):
+        self.future: asyncio.Future = None  # type: ignore
+        self.cancel_tokens: List[PCancelToken] = None  # type: ignore
+        self.tasks = None
+        self.sub_futures = None
 
     async def start(self):
         if not self.is_ready:
