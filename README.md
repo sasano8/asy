@@ -94,7 +94,7 @@ supervisor = asy.supervise(func1, func2, func3, func4, func5)
 supervisor.run()
 
 # or
-asy.run(func1, func2, func3, func4)
+asy.run(func1, func2, func3, func4, func5)
 ```
 
 
