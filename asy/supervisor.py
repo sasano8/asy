@@ -6,7 +6,7 @@ import logging
 import signal
 from typing import Any, List, Set, Tuple, Callable, Union
 import logging
-from .cancel_token import CancelToken
+from .tokens import CancelToken
 from .normalizer import normalize_to_schedulable
 
 logger = logging.getLogger(__name__)

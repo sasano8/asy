@@ -1,7 +1,7 @@
 from typing import Type, TypeVar, Tuple
 from .protocols import PAwaitable, PCancelToken, PSchedulable
 
-from .cancel_token import CancelToken, ForceCancelToken
+from .tokens import CancelToken, ForceCancelToken
 import asyncio
 
 T = TypeVar("T", bound=PAwaitable)
