@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "asy"
 version = "0.0.4"
-description = "asy is easy and powerful utility for asyncio."
+description = "asy is easy and powerful supervisor for asyncio."
 authors = ["sasano8 <y-sasahara@ys-method.com>"]
 license = "MIT"
 readme = "README.md"

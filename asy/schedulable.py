@@ -1,31 +1,10 @@
 from typing import Type, TypeVar, Tuple
 from .protocols import PAwaitable, PCancelToken, PSchedulable
 
-from functools import partial
 from .cancel_token import CancelToken, ForceCancelToken
 import asyncio
 
 T = TypeVar("T", bound=PAwaitable)
-
-
-class TaskBase:
-    pass
-
-
-class Task(TaskBase):
-    def __init__(self, type: Type[T]):
-        self.factory = type
-
-    def __call__(self, *args, **kwargs) -> T:
-        return self.factory(*args, **kwargs)  # type: ignore
-
-    async def schedule(self, *args, **kwargs):
-        func = self(*args, **kwargs)  # type: ignore
-        return await SupervisorAsync([func]).to_executor().schedule()
-
-    def run(self, *args, **kwargs):
-        func = self(*args, **kwargs)  # type: ignore
-        return SupervisorAsync([func]).to_executor().run()
 
 
 class Schedulable(PSchedulable):

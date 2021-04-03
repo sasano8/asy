@@ -1,24 +1,23 @@
 from __future__ import annotations
-from asy.protocols import PCancelToken, PSchedulable
+from asy.protocols import PCancelToken
 
 import asyncio
 import logging
 import signal
-from typing import (
-    Any,
-    List,
-    Set,
-    Tuple,
-)
+from typing import Any, List, Set, Tuple, Callable, Union
 import logging
-from .cancel_token import CancelToken, CallbackCancelToken
+from .cancel_token import CancelToken
+from .normalizer import normalize_to_schedulable
 
 logger = logging.getLogger(__name__)
 
 
 class Supervisor:
-    def __init__(self, *schedulables: PSchedulable):
-        self.schedulables = schedulables
+    def __init__(
+        self, *schedulables: Union[Callable[[], Any], Callable[[PCancelToken], Any]]
+    ):
+        tmp = [normalize_to_schedulable(x) for x in schedulables]
+        self.schedulables = tmp
         self.cancel_tokens: List[PCancelToken] = None  # type: ignore
         self.tasks = None
         self.future: asyncio.Future = None  # type: ignore
@@ -50,37 +49,40 @@ class Supervisor:
         task = asyncio.create_task(self.__call__(token))
         return token, task
 
+    def restart_every(self, *args):
+        raise NotImplementedError()
+
     def run(self, handle_signals: Set[str] = {"SIGINT", "SIGTERM"}):
+        """新たなイベントループ上に、管理している関数群をスケジューリングし、完了まで監督する。このメソッドは自身の状態を変更しない。"""
         loop = asyncio.new_event_loop()
+        token = CancelToken()
 
         def handle_cancel():
-            print("cancel requested.")
-            asyncio.create_task(self.stop())
+            token.is_cancelled = True
 
         for sig_name in handle_signals:
             sig = getattr(signal, sig_name)
             loop.add_signal_handler(sig, handle_cancel)
 
-        token = CallbackCancelToken(handle_cancel)
+        try:
+            result = loop.run_until_complete(self(token))
+        except Exception as e:
+            raise
+        finally:
+            loop.close()
 
-        async def main():
-            tokens, tasks, future, sub_futures = self._start()
-            result = await future
-            return await self.finalize(result, sub_futures)
-
-        result = loop.run_until_complete(main())
-        loop.close()
-        self.clear()
         return result
 
     async def __call__(self, token: PCancelToken):
+        """管理している関数群をスケジューリングし、完了まで監督する。このメソッドは自身の状態を変更しない。"""
         tokens, tasks, future, sub_futures = self._start()
 
         async def observe_cancel():
-            while future.done() == False:
+            while not future.done():
                 await asyncio.sleep(0.1)
                 if token.is_cancelled:
-                    await self.stop()
+                    for token in tokens:
+                        token.is_cancelled = True
 
         task = asyncio.create_task(observe_cancel())
         sub_futures.append(task)
@@ -101,9 +103,7 @@ class Supervisor:
         return wait_result[0]
 
     def _start(self):
-        if not self.is_ready:
-            raise Exception("already running.")
-
+        schedulables = self.schedulables
         on_succeed = self.on_succeed
         on_error = self.on_error
         on_cancel = self.on_cancel
@@ -129,7 +129,7 @@ class Supervisor:
         tokens = []
         sub_futures = []
 
-        for index, schedulable in enumerate(self.schedulables):
+        for index, schedulable in enumerate(schedulables):
             token, task = schedulable.schedule()
             tokens.append(token)
             tasks.append(task)
@@ -138,14 +138,18 @@ class Supervisor:
         future = asyncio.create_task(
             asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
         )
+        return tokens, tasks, future, sub_futures
+
+    async def start(self):
+        if not self.is_ready:
+            raise Exception("already running.")
+
+        tokens, tasks, future, sub_futures = self._start()
         self.future = future
         self.cancel_tokens = tokens
         self.tasks = tasks
         self.sub_futures = sub_futures
         return tokens, tasks, future, sub_futures
-
-    async def start(self):
-        tokens, tasks, future, sub_futures = self._start()
 
     def cancel(self):
         if self.is_ready:

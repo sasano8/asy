@@ -13,11 +13,13 @@ class PCancelToken(Protocol):
         raise NotImplementedError()
 
 
+@runtime_checkable
 class PAwaitable(Protocol):
     async def __call__(self, token: PCancelToken):
         ...
 
 
+@runtime_checkable
 class PSchedulable(Protocol):
     def schedule(self) -> Tuple[PCancelToken, asyncio.Task]:
         raise NotImplementedError()

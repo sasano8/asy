@@ -3,12 +3,12 @@ import inspect
 from functools import wraps
 from typing import Any, get_type_hints
 
-from .protocols import PCancelToken
-from .task import CancelableAsyncTask, ForceCancelAsyncTask, TaskBase
+from .protocols import PCancelToken, PSchedulable
+from .schedulable import CancelableAsyncTask, ForceCancelAsyncTask
 
 
 def normalize_to_schedulable(value):
-    if isinstance(value, TaskBase):
+    if isinstance(value, PSchedulable):
         return value
 
     if not callable(value):

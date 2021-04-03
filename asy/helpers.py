@@ -1,11 +1,11 @@
 from .supervisor import Supervisor
-from .normalizer import normalize_to_schedulable
+from typing import Union, Callable, Any
+from .protocols import PCancelToken
 
 
-def run(*args):
+def run(*args: Union[Callable[[], Any], Callable[[PCancelToken], Any]]):
     return supervise(*args).run()
 
 
-def supervise(*args):
-    schedulable = [normalize_to_schedulable(x) for x in args]
-    return Supervisor(*schedulable)
+def supervise(*args: Union[Callable[[], Any], Callable[[PCancelToken], Any]]):
+    return Supervisor(*args)

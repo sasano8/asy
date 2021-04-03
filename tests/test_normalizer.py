@@ -2,7 +2,7 @@ import pytest
 from asy.normalizer import normalize_to_schedulable
 from typing import Any
 from asy import PCancelToken, CancelToken
-from asy.task import ForceCancelAsyncTask, CancelableAsyncTask
+from asy.schedulable import ForceCancelAsyncTask, CancelableAsyncTask
 import asyncio
 
 

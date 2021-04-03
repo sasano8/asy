@@ -2,7 +2,7 @@
 [![Version](https://img.shields.io/pypi/v/asy)](https://pypi.org/project/asy)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-`asy` is easy and powerful utility for `asyncio`.
+`asy` is easy and powerful supervisor for `asyncio`.
 
 # Motivation for development
 
@@ -59,13 +59,17 @@ def func4():
 
 # from callable
 class YourDeamon:
+    def __init__(self, value):
+        self.value = value
+
     async def __call__(self, token):
+        value = self.value
+
         while not token.is_cancelled:
             await asyncio.sleep(1)
-        return "complete func5."
+        return f"complete func5.  result: {value}"
 
 func5 = YourDeamon()
-
 
 # Do not run
 # infinity loop
