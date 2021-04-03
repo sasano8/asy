@@ -138,10 +138,31 @@ class SupervisorBase:
 
 class Supervisor(SupervisorBase):
     def __post_init__(self):
+        self.clear()
+
+    def clear(self):
         self.future: asyncio.Future = None  # type: ignore
         self.cancel_tokens: List[PCancelToken] = None  # type: ignore
         self.tasks = None
         self.sub_futures = None
+        assert self.is_ready
+
+    @property
+    def is_ready(self):
+        return all(
+            [
+                self.future is None,
+                self.cancel_tokens is None,
+                self.tasks is None,
+                self.sub_futures is None,
+            ]
+        )
+
+    @property
+    def is_completed(self):
+        if self.is_ready:
+            return False
+        return self.future.done()
 
     async def start(self):
         if not self.is_ready:
@@ -164,24 +185,3 @@ class Supervisor(SupervisorBase):
     async def stop(self, timeout=10000):
         self.cancel()
         await self.future
-
-    def is_completed(self):
-        return self.future.done()
-
-    @property
-    def is_ready(self):
-        return all(
-            [
-                self.future is None,
-                self.cancel_tokens is None,
-                self.tasks is None,
-                self.sub_futures is None,
-            ]
-        )
-
-    def clear(self):
-        self.future = None
-        self.cancel_tokens = None
-        self.tasks = None
-        self.sub_futures = None
-        assert self.is_ready
