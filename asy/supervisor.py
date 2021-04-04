@@ -147,47 +147,37 @@ class Supervisor(SupervisorBase):
         self.clear()
 
     def clear(self):
-        self.future: asyncio.Future = None  # type: ignore
-        self.cancel_tokens: List[PCancelToken] = None  # type: ignore
-        self.tasks = None
-        self.sub_futures = None
-        assert self.is_ready
+        self.task: asyncio.Future
+        self.token: PCancelToken
+        assert not self.is_running
+
+    async def start(self):
+        if self.is_running:
+            raise Exception("already running.")
+
+        token, task = self.schedule()
+        self.task = task
+        self.token = token
+        await asyncio.sleep(0)
 
     @property
-    def is_ready(self):
-        return all(
-            [
-                self.future is None,
-                self.cancel_tokens is None,
-                self.tasks is None,
-                self.sub_futures is None,
-            ]
-        )
+    def is_running(self):
+        is_ready = self.task is None and self.token is None
+        return not is_ready
 
     @property
     def is_completed(self):
-        if self.is_ready:
+        if not self.is_running:
             return False
-        return self.future.done()
+        return self.task.done()
 
-    async def start(self):
-        if not self.is_ready:
-            raise Exception("already running.")
-
-        tokens, tasks, future, sub_futures = self._start()
-        self.future = future
-        self.cancel_tokens = tokens
-        self.tasks = tasks
-        self.sub_futures = sub_futures
-        return tokens, tasks, future, sub_futures
-
-    def cancel(self):
-        if self.is_ready:
+    async def cancel(self):
+        if not self.is_running:
             raise Exception("The coroutine has not been executed yet")
 
-        for token in self.cancel_tokens:
-            token.is_cancelled = True
+        self.token.is_cancelled = True
+        await asyncio.sleep(0)
 
     async def stop(self, timeout=10000):
         self.cancel()
-        await self.future
+        await self.task
