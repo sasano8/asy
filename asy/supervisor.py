@@ -147,8 +147,8 @@ class Supervisor(SupervisorBase):
         self.clear()
 
     def clear(self):
-        self.task: asyncio.Future
-        self.token: PCancelToken
+        self.task: asyncio.Future = None
+        self.token: PCancelToken = None
         assert not self.is_running
 
     async def start(self):
