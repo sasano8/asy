@@ -30,7 +30,7 @@ jobs:
         run: echo "$HOME/.poetry/bin" >> $GITHUB_PATH
 
       - name: Load cached venv
-        id: cached-poetry-dependencies
+        id: cache-venv
         uses: actions/cache@v2
         with:
           path: .venv
@@ -38,7 +38,7 @@ jobs:
 
       - name: Install Dependencies
         run: poetry install
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        if: steps.cache-venv.outputs.cache-hit != 'true'
 
       - name: Run Tests
         run: poetry run pytest tests
