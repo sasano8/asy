@@ -29,17 +29,17 @@ jobs:
       - name: Add path for Poetry
         run: echo "$HOME/.poetry/bin" >> $GITHUB_PATH
 
-      # - name: Load cached venv
-      #   id: cache-venv
-      #   uses: actions/cache@v2
-      #   with:
-      #     path: venv
-      #     key: venv-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
+      - name: Load cached venv
+        id: cache-venv
+        uses: actions/cache@v2
+        with:
+          path: venv
+          key: venv-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install Dependencies
         run: poetry install
+        if: steps.cache-venv.outputs.cache-hit != 'true'
 
-        # if: steps.cache-venv.outputs.cache-hit != 'true'
       - name: Run Tests
         run: poetry run pytest tests
 
