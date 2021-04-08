@@ -1,14 +1,16 @@
 from __future__ import annotations
-from asy.protocols import PCancelToken
-from multiprocessing import Process
 
 import asyncio
 import logging
 import signal
-from typing import Any, List, Set, Tuple, Callable, Union
-import logging
-from .tokens import CancelToken
+from functools import partial
+from multiprocessing import Process
+from typing import Any, Callable, List, Set, Tuple, Union
+
+from asy.protocols import PCancelToken
+
 from .normalizer import normalize_to_schedulable
+from .tokens import CancelToken
 
 logger = logging.getLogger(__name__)
 
@@ -56,13 +58,13 @@ class SupervisorBase:
         loop = asyncio.new_event_loop()
         token = CancelToken()
 
-        def handle_cancel():
+        def handle_cancel(token):
             print("cancel requested.")
             token.is_cancelled = True
 
         for sig_name in handle_signals:
             sig = getattr(signal, sig_name)
-            loop.add_signal_handler(sig, handle_cancel)
+            loop.add_signal_handler(sig, partial(handle_cancel, token))
 
         # result = loop.run_until_complete(self(token))
         try:
@@ -74,18 +76,26 @@ class SupervisorBase:
 
         return result
 
+    async def run_async(self, handle_signals: Set[str] = {"SIGINT", "SIGTERM"}):
+        """
+        __call__のtokenのデフォルト値をNoneにした方が分かりやすい
+        キャンセルが要求されると、CancelErrorがraiseされるのでそれを捕捉する。
+        """
+        token = CancelToken()
+        return self(token)
+
     async def __call__(self, token: PCancelToken):
         """管理している関数群をスケジューリングし、完了まで監督する。このメソッドは自身の状態を変更しない。"""
         tokens, tasks, future, sub_futures = self._start()
 
-        async def observe_cancel(token):
+        async def observe_cancel(future, token, tokens):
             while not future.done():
                 await asyncio.sleep(0.1)
                 if token.is_cancelled:
-                    for token in tokens:
-                        token.is_cancelled = True
+                    for t in tokens:
+                        t.is_cancelled = True
 
-        task = asyncio.create_task(observe_cancel(token))
+        task = asyncio.create_task(observe_cancel(future, token, tokens))
         sub_futures.append(task)
         result = await future
         return await self.finalize(result, sub_futures)
@@ -128,7 +138,7 @@ class SupervisorBase:
 
         tasks = []
         tokens = []
-        sub_futures = []
+        sub_futures = []  # type: ignore
 
         for index, schedulable in enumerate(schedulables):
             token, task = schedulable.schedule()
@@ -147,9 +157,25 @@ class Supervisor(SupervisorBase):
         self.clear()
 
     def clear(self):
-        self.task: asyncio.Future = None
-        self.token: PCancelToken = None
-        assert not self.is_running
+        self.task: asyncio.Future = None  # type: ignore
+        self.token: PCancelToken = None  # type: ignore
+        assert self.is_ready
+
+    @property
+    def is_ready(self):
+        return self.task is None and self.token is None
+
+    @property
+    def is_running(self):
+        if self.is_ready:
+            return False
+        return not self.task.done()
+
+    @property
+    def is_completed(self):
+        if self.is_ready:
+            return False
+        return self.task.done()
 
     async def start(self):
         if self.is_running:
@@ -160,24 +186,9 @@ class Supervisor(SupervisorBase):
         self.token = token
         await asyncio.sleep(0)
 
-    @property
-    def is_running(self):
-        is_ready = self.task is None and self.token is None
-        return not is_ready
-
-    @property
-    def is_completed(self):
-        if not self.is_running:
-            return False
-        return self.task.done()
-
-    async def cancel(self):
-        if not self.is_running:
+    async def stop(self, timeout=10000):
+        if self.is_ready:
             raise Exception("The coroutine has not been executed yet")
 
         self.token.is_cancelled = True
-        await asyncio.sleep(0)
-
-    async def stop(self, timeout=10000):
-        self.cancel()
-        await self.task
+        await asyncio.wait(self.task, return_when=asyncio.ALL_COMPLETED)
