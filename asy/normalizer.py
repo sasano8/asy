@@ -42,7 +42,8 @@ def normalize_to_schedulable(value):
 
     elif param_size == 1:
 
-        annotation = list(sig.parameters.values())[0].annotation
+        param = list(sig.parameters.values())[0]
+        annotation = param.annotation
         if isinstance(annotation, str):
             dic = get_type_hints(target)  # 型ヒント無しは何も返さない。Any返せや！！！
             annotations = list(dic.values())
@@ -54,6 +55,7 @@ def normalize_to_schedulable(value):
         if (
             annotation == inspect._empty  # type: ignore
             or annotation == Any
+            or "token" in param.name
             or hasattr(annotation, "is_cancelled")
             or getattr(annotation, "__annotations__", {}).get("is_cancelled")
         ):

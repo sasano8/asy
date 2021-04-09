@@ -35,39 +35,43 @@ def no_args_normal():
     return 1
 
 
-async def one_args(token):
+async def one_args(t):
     return 1
 
 
-def one_args_normal(token):
+def one_args_normal(t):
     return 1
 
 
-async def one_args_any(token: Any):
+async def one_args_any(t: Any):
     return 1
 
 
-async def one_args_pcancel_token(token: PCancelToken):
+async def one_args_pcancel_token(t: PCancelToken):
     return 1
 
 
-async def one_args_cancel_token(token: CancelToken):
+async def one_args_cancel_token(t: CancelToken):
     return 1
 
 
-async def one_args_my_cancel_token1(token: MYCancelToken1):
+async def one_args_my_cancel_token1(t: MYCancelToken1):
     return 1
 
 
-async def one_args_my_cancel_token2(token: MYCancelToken2):
+async def one_args_my_cancel_token2(t: MYCancelToken2):
     return 1
 
 
-async def one_args_my_cancel_token3(token: MYCancelToken3):
+async def one_args_my_cancel_token3(t: MYCancelToken3):
     return 1
 
 
-async def one_args_other_class(token: OtherClass):
+async def one_args_other_class(t: OtherClass):
+    return 1
+
+
+async def one_args_other_class_named_token(token: OtherClass):
     return 1
 
 
@@ -77,7 +81,7 @@ class CallableNoArg:
 
 
 class CallableOneArg:
-    async def __call__(self, token):
+    async def __call__(self, t):
         return 1
 
 
@@ -87,40 +91,47 @@ class CallableNoArgNormal:
 
 
 class CallableOneArgNormal:
-    def __call__(self, token):
+    def __call__(self, t):
         return 1
 
 
-async def one_args_pcancel_token_lazy(token: "PCancelToken"):
+async def one_args_pcancel_token_lazy(t: "PCancelToken"):
     return 1
 
 
 class CallableLazy:
-    async def __call__(self, token: "PCancelToken"):
+    async def __call__(self, t: "PCancelToken"):
         return 1
+
+
+CANCELABLE = CancelableAsyncTask
+FORCE_CANCEL = ForceCancelAsyncTask
+ERROR = None
 
 
 @pytest.mark.parametrize(
     "expect_type, value",
     [
-        (None, two_args),
-        (ForceCancelAsyncTask, no_args),
-        (ForceCancelAsyncTask, no_args_normal),
-        (CancelableAsyncTask, one_args),
-        (None, one_args_normal),
-        (CancelableAsyncTask, one_args_any),
-        (CancelableAsyncTask, one_args_pcancel_token),
-        (CancelableAsyncTask, one_args_cancel_token),
-        (CancelableAsyncTask, one_args_my_cancel_token1),
-        (CancelableAsyncTask, one_args_my_cancel_token2),
-        (None, one_args_my_cancel_token3),
-        (None, one_args_other_class),
-        (ForceCancelAsyncTask, CallableNoArg()),
-        (CancelableAsyncTask, CallableOneArg()),
-        (ForceCancelAsyncTask, CallableNoArgNormal()),
-        (None, CallableOneArgNormal()),
-        (CancelableAsyncTask, one_args_pcancel_token_lazy),
-        (CancelableAsyncTask, CallableLazy()),
+        (ERROR, two_args),
+        (FORCE_CANCEL, no_args),
+        (FORCE_CANCEL, no_args_normal),
+        (CANCELABLE, one_args),
+        (ERROR, one_args_normal),
+        (CANCELABLE, one_args_any),
+        (CANCELABLE, one_args_pcancel_token),
+        (CANCELABLE, one_args_cancel_token),
+        (CANCELABLE, one_args_my_cancel_token1),
+        (CANCELABLE, one_args_my_cancel_token2),
+        (ERROR, one_args_my_cancel_token3),
+        (ERROR, one_args_other_class),
+        # # If the argument name contains token, skip type validation
+        (CANCELABLE, one_args_other_class_named_token),
+        (FORCE_CANCEL, CallableNoArg()),
+        (CANCELABLE, CallableOneArg()),
+        (FORCE_CANCEL, CallableNoArgNormal()),
+        (ERROR, CallableOneArgNormal()),
+        (CANCELABLE, one_args_pcancel_token_lazy),
+        (CANCELABLE, CallableLazy()),
     ],
 )
 def test_normalize_to_task(expect_type, value):
