@@ -8,7 +8,7 @@ from multiprocessing import Process
 from typing import Any, Callable, List, Set, Tuple, Union
 
 from asy.protocols import PCancelToken
-from asy.exceptions import RestartAllException
+from asy.exceptions import RestartAllException, AllCancelException
 
 from .normalizer import normalize_to_schedulable
 from .tokens import CancelToken
@@ -76,8 +76,14 @@ class SupervisorBase:
             nonlocal token
             nonlocal is_restart
 
-            token.is_cancelled = True
-            is_restart = True
+            if isinstance(e, AllCancelException):
+                token.is_cancelled = True
+                is_restart = False
+            elif isinstance(e, RestartAllException):
+                token.is_cancelled = True
+                is_restart = True
+            else:
+                raise Exception(f"Unkown exception: {e}")
             return e
 
         while not token.is_cancelled:
@@ -133,6 +139,10 @@ class SupervisorBase:
                 on_succeed(task)
 
             except RestartAllException as e:
+                restart_callback(e)
+                on_cancel(task)
+
+            except AllCancelException as e:
                 restart_callback(e)
                 on_cancel(task)
 
