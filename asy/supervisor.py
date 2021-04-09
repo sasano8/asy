@@ -8,6 +8,7 @@ from multiprocessing import Process
 from typing import Any, Callable, List, Set, Tuple, Union
 
 from asy.protocols import PCancelToken
+from asy.exceptions import RestartAllException
 
 from .normalizer import normalize_to_schedulable
 from .tokens import CancelToken
@@ -39,19 +40,10 @@ class SupervisorBase:
             lambda task: logger.info(f"[COMPLETE]{task}")
         )
 
-    def set_config_print_log(self):
-        self.on_succeed = lambda task: print(task)
-        self.on_error = lambda task: print(task)
-        self.on_cancel = lambda task: print(task)
-        self.on_completed = lambda task: print(task)
-
     def schedule(self) -> Tuple[PCancelToken, asyncio.Task]:
         token = CancelToken()
         task = asyncio.create_task(self.__call__(token))
         return token, task
-
-    def to_process(self, handle_signals: Set[str] = {"SIGINT", "SIGTERM"}):
-        return Process(target=self.run, kwargs={"handle_signals": handle_signals})
 
     def run(self, handle_signals: Set[str] = {"SIGINT", "SIGTERM"}):
         """新たなイベントループ上に、管理している関数群をスケジューリングし、完了まで監督する。このメソッドは自身の状態を変更しない。"""
@@ -66,7 +58,6 @@ class SupervisorBase:
             sig = getattr(signal, sig_name)
             loop.add_signal_handler(sig, partial(handle_cancel, token))
 
-        # result = loop.run_until_complete(self(token))
         try:
             result = loop.run_until_complete(self(token))
         except Exception as e:
@@ -76,35 +67,51 @@ class SupervisorBase:
 
         return result
 
-    async def run_async(self, handle_signals: Set[str] = {"SIGINT", "SIGTERM"}):
-        """
-        __call__のtokenのデフォルト値をNoneにした方が分かりやすい
-        キャンセルが要求されると、CancelErrorがraiseされるのでそれを捕捉する。
-        """
-        token = CancelToken()
-        return self(token)
-
     async def __call__(self, token: PCancelToken):
         """管理している関数群をスケジューリングし、完了まで監督する。このメソッドは自身の状態を変更しない。"""
-        tokens, tasks, future, sub_futures = self._start()
+        is_restart = True
+        finalized_result = None
 
-        async def observe_cancel(future, token, tokens):
-            while not future.done():
-                await asyncio.sleep(0.1)
-                if token.is_cancelled:
-                    for t in tokens:
-                        t.is_cancelled = True
+        def restart_callback(e):
+            nonlocal token
+            nonlocal is_restart
 
-        task = asyncio.create_task(observe_cancel(future, token, tokens))
-        sub_futures.append(task)
-        result = await future
-        return await self.finalize(result, sub_futures)
+            token.is_cancelled = True
+            is_restart = True
+            return e
+
+        while not token.is_cancelled:
+            is_restart = False
+            tokens, tasks, future, sub_futures = self._start(restart_callback)
+
+            async def observe_cancel(future, token, tokens):
+                while not future.done():
+                    await asyncio.sleep(0.1)
+                    if token.is_cancelled:
+                        for t in tokens:
+                            t.is_cancelled = True
+
+            task = asyncio.create_task(observe_cancel(future, token, tokens))
+            sub_futures.append(task)
+
+            result = await future
+            self.cancel_sub_futures(sub_futures)
+            finalized_result = await self.finalize_result(result)
+
+            if is_restart:
+                token.is_cancelled = False
+            else:
+                token.is_cancelled = True
+
+        return finalized_result
 
     @classmethod
-    async def finalize(cls, wait_result, sub_futures):
+    def cancel_sub_futures(cls, sub_futures):
         for sub in sub_futures:
             sub.cancel()
 
+    @classmethod
+    async def finalize_result(cls, wait_result):
         result = cls.get_result_from_wait(wait_result)
         await asyncio.sleep(0)
         return result
@@ -113,7 +120,7 @@ class SupervisorBase:
     def get_result_from_wait(wait_result):
         return wait_result[0]
 
-    def _start(self):
+    def _start(self, restart_callback):
         schedulables = self.schedulables
         on_succeed = self.on_succeed
         on_error = self.on_error
@@ -124,16 +131,17 @@ class SupervisorBase:
             try:
                 result = task.result()
                 on_succeed(task)
-            except asyncio.CancelledError:
-                # logger.info(f"[CANCEL]{task}")
-                on_cancel(task)
-            except Exception:  # pylint: disable=broad-except
-                # logger.exception(message, *message_args)
-                # import traceback
 
-                # logger.warning(traceback.format_exc())
-                # logger.warning(f"[FAILED]{task}")
+            except RestartAllException as e:
+                restart_callback(e)
+                on_cancel(task)
+
+            except asyncio.CancelledError as e:
+                on_cancel(task)
+
+            except Exception:  # pylint: disable=broad-except
                 on_error(task)
+
             on_completed(task)
 
         tasks = []

@@ -150,3 +150,26 @@ def test_supervisor_cancel_control(func, handle_signal, send_signal, exit_type):
         raise
     finally:
         process.kill()
+
+
+def test_restart():
+
+    count1 = 0
+    count2 = 0
+
+    def restart():
+        nonlocal count1
+        count1 += 1
+        if count1 == 2:
+            return
+        raise asy.RestartAllException()
+
+    def countup():
+        nonlocal count2
+        count2 += 1
+
+    supervisor = asy.supervise(restart, countup)
+    supervisor.run()
+
+    assert count1 == 2
+    assert count2 == 2
