@@ -1,3 +1,7 @@
+## v0.0.7 (2021-04-09)
+
+* Added --reload option to cli.
+
 ## v0.0.6 (2021-04-03)
 
 * Fix bug - cancel unmanaged.

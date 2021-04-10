@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "asy"
-version = "0.0.6"
+version = "0.0.7"
 description = "asy is easy and powerful supervisor for asyncio."
 authors = ["sasano8 <y-sasahara@ys-method.com>"]
 license = "MIT"
@@ -22,3 +22,4 @@ pytest = "^6.2.2"
 [build-system]
 requires = ["poetry>=0.12"]
 build-backend = "poetry.masonry.api"
+
