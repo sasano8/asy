@@ -25,6 +25,8 @@ def run(attrs: List[str], reload: bool = False, log: str = "INFO"):
 
     tmp = set()
 
+    # キャッシュをクリアするためのモジュールリストを構築する
+    # TODO: ネストしたモジュールのリロードにも対応したが、おそらく１ネストしかリロードされないと思う
     for module in modules:
         for package, module in enumrate_members(module):
             packages.add(package)
