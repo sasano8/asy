@@ -4,7 +4,7 @@ from pathlib import Path
 from asy.exceptions import RestartAllException
 
 
-class Reloader:
+class FileWatcher:
     def __init__(self, reload_dirs, exclude_dirs=[".venv", "__pypackages__"]):
         self.reload_dirs = reload_dirs
 

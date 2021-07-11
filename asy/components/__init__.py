@@ -1,4 +1,4 @@
-from .reloader import Reloader
+from .filewatcher import FileWatcher
 
 
-__all__ = ["Reloader"]
+__all__ = ["FileWatcher"]

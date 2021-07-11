@@ -1,6 +1,6 @@
 import asy
-from asy.components import Reloader
-from asy.components.reloader import iter_py_files
+from asy.components import FileWatcher
+from asy.components.filewatcher import iter_py_files
 import asyncio
 
 
@@ -34,7 +34,7 @@ def test_reloader(tmp_path):
             raise asy.AllCancelException()
 
     result = asy.supervise(
-        asy.timeout(3), update_file, countup, Reloader([str(d)])
+        asy.timeout(3), update_file, countup, FileWatcher([str(d)])
     ).run()
 
     assert result

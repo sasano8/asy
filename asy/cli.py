@@ -1,10 +1,59 @@
-import importlib
 import typer
 from typing import List
 import logging
-from asy.components import Reloader
+from asy.components import FileWatcher
 
 app = typer.Typer()
+
+
+class Reloader:
+    def __init__(self, attrs):
+        # 指定内容が正しいか一度検証する
+        package_modules = {get_package_and_module(x) for x in attrs}
+        packages = {x[0] for x in package_modules}
+        modules = {x[1] for x in package_modules}
+
+        tmp = set()
+
+        # キャッシュをクリアするためのモジュールリストを構築する
+        # TODO: ネストしたモジュールのリロードにも対応したが、おそらく１ネストしかリロードされないと思う
+        for module in modules:
+            for package, module in enumrate_members(module):
+                packages.add(package)
+                tmp.add(module)
+
+        for module in tmp:
+            modules.add(module)
+
+        packages = {x for x in packages if x}
+        modules = {x for x in modules if x}
+
+        excludes = {"asyncio", "asy"}
+        packages = {x for x in packages if x not in excludes}
+
+        self.attrs = attrs
+        self.packages = packages
+        self.modules = modules
+
+    def clear_import(self):
+        [clear_cache(x) for x in self.packages]
+        [clear_cache(x) for x in self.modules]
+
+    async def __call__(self, token):
+        import asy
+
+        callables = [get_module_attr_from_str(x) for x in self.attrs]
+        supervisor = asy.supervise(*callables)
+        await supervisor(token)
+        self.clear_import()
+
+    @classmethod
+    def from_functions(cls, *attrs):
+        return cls(attrs=attrs)
+
+    @classmethod
+    def from_class(cls, target, **kwargs):
+        raise NotImplementedError()
 
 
 @app.command()
@@ -16,41 +65,9 @@ def run(attrs: List[str], reload: bool = False, log: str = "INFO"):
     sub = []
 
     if reload:
-        sub.append(Reloader(["."]))
+        sub.append(FileWatcher(["."]))
 
-    # 指定内容が正しいか一度検証する
-    package_modules = {get_package_and_module(x) for x in attrs}
-    packages = {x[0] for x in package_modules}
-    modules = {x[1] for x in package_modules}
-
-    tmp = set()
-
-    # キャッシュをクリアするためのモジュールリストを構築する
-    # TODO: ネストしたモジュールのリロードにも対応したが、おそらく１ネストしかリロードされないと思う
-    for module in modules:
-        for package, module in enumrate_members(module):
-            packages.add(package)
-            tmp.add(module)
-
-    for module in tmp:
-        modules.add(module)
-
-    packages = {x for x in packages if x}
-    modules = {x for x in modules if x}
-
-    excludes = {"asyncio", "asy"}
-    packages = {x for x in packages if x not in excludes}
-
-    def clear_import():
-        [clear_cache(x) for x in packages]
-        [clear_cache(x) for x in modules]
-
-    async def reloader(token):
-        callables = [get_module_attr_from_str(x) for x in attrs]
-        supervisor = asy.supervise(*callables)
-        await supervisor(token)
-        clear_import()
-
+    reloader = Reloader.from_functions(*attrs)
     asy.supervise(reloader, *sub).run()
 
 
