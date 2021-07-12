@@ -1,3 +1,7 @@
+## v0.0.8 (2021-XX-XX)
+
+* Support supervisor for run in async function.
+
 ## v0.0.7 (2021-04-09)
 
 * Added --reload option to cli.

@@ -173,3 +173,90 @@ def test_restart():
 
     assert count1 == 2
     assert count2 == 2
+
+
+def test_start_stop():
+    result = 0
+
+    def func1():
+        nonlocal result
+        result = 1
+
+    async def func2(token):
+        nonlocal result
+        result = 2
+        await asyncio.sleep(0.1)
+        result = 3
+
+    async def main(*funcs):
+        supervisor = asy.supervise(*funcs)
+        await supervisor.start()
+        await supervisor.stop()
+
+    asyncio.run(main(func1))
+    assert result == 1
+
+    asyncio.run(main(func2))
+    assert result == 3
+
+
+def test_start_duplicate():
+    async def main():
+        async def dummy():
+            await asyncio.sleep(5)
+
+        supervisor = asy.supervise(dummy)
+        await supervisor.start()
+        with pytest.raises(Exception, match="already running"):
+            await supervisor.start()
+
+    asyncio.run(main())
+
+
+def test_start_after_stop():
+    result = 0
+
+    async def main():
+        async def dummy(token):
+            nonlocal result
+            result = 1
+            await asyncio.sleep(0.1)
+            result = 2
+
+        supervisor = asy.supervise(dummy)
+        await supervisor.start()
+        await asyncio.sleep(0.2)
+        await supervisor.stop()
+        assert result == 2
+        await supervisor.start()
+
+    asyncio.run(main())
+    assert result == 1
+    # TODO: stopを実行しない場合、正しくキャンセルコントロールされない
+    # キャンセルを抑制しているにも関わらず、強制キャンセルされ、ディスポーズ処理がされない
+    # このテストの場合、最終的なresultは2になるべきである
+
+
+def test_stop_before_start():
+    async def main():
+        async def dummy():
+            await asyncio.sleep(0.1)
+
+        supervisor = asy.supervise(dummy)
+        with pytest.raises(Exception, match="The coroutine has not been executed yet"):
+            await supervisor.stop()
+
+    asyncio.run(main())
+
+
+def test_stop_twice():
+    async def main():
+        async def dummy():
+            await asyncio.sleep(0.1)
+
+        supervisor = asy.supervise(dummy)
+        await supervisor.start()
+        await supervisor.stop()
+        await supervisor.stop()
+
+    asyncio.run(main())

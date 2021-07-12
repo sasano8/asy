@@ -4,7 +4,6 @@ import asyncio
 async def func1(token):
     while not token.is_cancelled:
         await asyncio.sleep(1)
-    raise asyncio.CancelledError()
     return "complete func1."
 
 
@@ -29,6 +28,14 @@ def func4():
     return f"complete func4.  result: {i}"
 
 
+async def func5():
+    try:
+        while True:
+            await asyncio.sleep(1)
+    except asyncio.CancelledError:
+        print("occured asyncio.CancelledError.")
+
+
 # from callable
 class YourDeamon:
     def __init__(self, value):
@@ -42,10 +49,10 @@ class YourDeamon:
         return f"complete func5.  result: {value}"
 
 
-func5 = YourDeamon(1)
+func6 = YourDeamon(1)
 
 # Do not run
 # infinity loop
-# async def func5():
+# async def func7():
 #     while True:
 #         print("waiting")

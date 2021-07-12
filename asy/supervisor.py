@@ -42,7 +42,7 @@ class SupervisorBase:
 
     def schedule(self) -> Tuple[PCancelToken, asyncio.Task]:
         token = CancelToken()
-        task = asyncio.create_task(self.__call__(token))
+        task = asyncio.create_task(self(token))
         return token, task
 
     def run(self, handle_signals: Set[str] = {"SIGINT", "SIGTERM"}):
@@ -209,4 +209,4 @@ class Supervisor(SupervisorBase):
             raise Exception("The coroutine has not been executed yet")
 
         self.token.is_cancelled = True
-        await asyncio.wait(self.task, return_when=asyncio.ALL_COMPLETED)
+        await asyncio.wait([self.task], return_when=asyncio.ALL_COMPLETED)

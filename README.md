@@ -57,6 +57,16 @@ def func4():
         ...
     return f"complete func4.  result: {i}"
 
+
+# Control cancellation by asyncio.CancelledError instead of cancel token.
+async def func5():
+    try:
+        while True:
+            await asyncio.sleep(1)
+    except asyncio.CancelledError:
+        print("occured asyncio.CancelledError.")
+
+
 # from callable
 class YourDeamon:
     def __init__(self, value):
@@ -69,11 +79,11 @@ class YourDeamon:
             await asyncio.sleep(1)
         return f"complete func5.  result: {value}"
 
-func5 = YourDeamon(1)
+func6 = YourDeamon(1)
 
 # Do not run
 # infinity loop
-# async def func5():
+# async def func7():
 #     while True:
 #         print("waiting")
 ```
@@ -81,24 +91,47 @@ func5 = YourDeamon(1)
 Run in shell.
 
 ``` shell
-python3 -m asy example:func1 example:func2 example:func3 example:func4 example:func5
+python3 -m asy example:func1 example:func2 example:func3 example:func4 example:func5 example:func6
 ```
 
 Run in Python script.
 
 ``` python
 import asy
-from example import func1, func2, func3, func4, func5
+from example import func1, func2, func3, func4, func5, func6
 
-supervisor = asy.supervise(func1, func2, func3, func4, func5)
+supervisor = asy.supervise(func1, func2, func3, func4, func5, func6)
 supervisor.run()
 
 # or
-asy.run(func1, func2, func3, func4, func5)
+asy.run(func1, func2, func3, func4, func5, func6)
+```
+
+Run in event loop.
+
+``` python
+import asyncio
+import asy
+from example import func1, func2, func3, func4, func5, func6
+
+async def main():
+    supervisor = asy.supervise(func1, func2, func3, func4, func5, func6)
+    await supervisor.start()
+    await asyncio.sleep(10)
+    await supervisor.stop()
+
+asyncio.run(main())
 ```
 
 
 Let's end the daemon with `Ctrl-C` and enjoy `asy`!
 
+# What is token?
+
+By defining token in the argument of the function, the function is `async.shield` and `asyncio.CancelledError` is suppressed.
+
+The supervisor sets `True` to `token.is_cancelled` when it detects a cancellation.
+
 # Caution
 `asy` is a beta version. Please do not use it in production.
+
