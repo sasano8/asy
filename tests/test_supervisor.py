@@ -260,3 +260,12 @@ def test_stop_twice():
         await supervisor.stop()
 
     asyncio.run(main())
+
+
+def test_run_in_event_loop():
+    async def main():
+        supervisor = asy.supervise(lambda: None)
+        supervisor.run()
+
+    with pytest.raises(RuntimeError, match="Can not run in event loop."):
+        asyncio.run(main())

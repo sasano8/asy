@@ -1,6 +1,7 @@
 ## v0.0.8 (2021-XX-XX)
 
 * Support supervisor for run in async function.
+* Implemented the basics of execution logs
 
 ## v0.0.7 (2021-04-09)
 

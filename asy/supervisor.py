@@ -4,8 +4,7 @@ import asyncio
 import logging
 import signal
 from functools import partial
-from multiprocessing import Process
-from typing import Any, Callable, List, Set, Tuple, Union
+from typing import Any, Callable, Set, Tuple, Union
 
 from asy.protocols import PCancelToken
 from asy.exceptions import RestartAllException, AllCancelException
@@ -40,6 +39,14 @@ class SupervisorBase:
             lambda task: logger.info(f"[COMPLETE]{task}")
         )
 
+    @staticmethod
+    def exists_loop():
+        try:
+            loop = asyncio.get_running_loop()
+            return True
+        except RuntimeError:
+            return False
+
     def schedule(self) -> Tuple[PCancelToken, asyncio.Task]:
         token = CancelToken()
         task = asyncio.create_task(self(token))
@@ -47,6 +54,9 @@ class SupervisorBase:
 
     def run(self, handle_signals: Set[str] = {"SIGINT", "SIGTERM"}):
         """新たなイベントループ上に、管理している関数群をスケジューリングし、完了まで監督する。このメソッドは自身の状態を変更しない。"""
+        if self.exists_loop():
+            raise RuntimeError("Can not run in event loop.")
+
         loop = asyncio.new_event_loop()
         token = CancelToken()
 
